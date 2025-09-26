@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивная модель: Построение изображения в собирающей линзе</title>
+    <style>
+        /* Общие стили для страницы */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* Главный контейнер, используем Grid для удобного расположения блоков */
+        .main-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        /* Панель с элементами управления */
+        .controls-panel {
+            padding-right: 20px;
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        .controls-panel h1 {
+            font-size: 1.5em;
+            margin-top: 0;
+            color: #0056b3;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        /* Стилизация ползунков */
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .value-display {
+            font-weight: 500;
+            color: #007bff;
+        }
+
+        /* Кнопки управления */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .button-group button {
+            flex-grow: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            background-color: #007bff;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .button-group button:hover {
+            background-color: #0056b3;
+        }
+
+        .button-group button.secondary {
+            background-color: #6c757d;
+        }
+        .button-group button.secondary:hover {
+            background-color: #5a6268;
+        }
+
+        /* Область симуляции */
+        .simulation-area {
+            display: flex;
+            flex-direction: column;
+            min-width: 0; /* Важно для корректной работы flex/grid */
+        }
+
+        .explanation {
+            background-color: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        /* SVG холст для отрисовки */
+        #simulation-canvas {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 2 / 1;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+
+        /* Блок с результатами вычислений */
+        .results-card {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .results-card h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            color: #343a40;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        .result-item {
+            font-size: 0.95em;
+        }
+        .result-item strong {
+            color: #495057;
+        }
+        .result-item span {
+            color: #0056b3;
+            font-weight: bold;
+        }
+        .info-message {
+            text-align: center;
+            font-weight: bold;
+            color: #d9534f;
+            padding: 10px;
+        }
+
+        /* Адаптивный макет для планшетов и мобильных устройств */
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr; /* Один столбец */
+            }
+            .controls-panel {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+                padding-right: 0;
+                padding-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
+        <aside class="controls-panel">
+            <h1>Собирающая линза</h1>
+            
+            <div class="control-group">
+                <label for="focalLength">Фокусное расстояние (f): <span id="focalLengthValue" class="value-display">100 см</span></label>
+                <input type="range" id="focalLength" min="5" max="200" value="100" step="1" aria-label="Фокусное расстояние">
+            </div>
+            
+            <div class="control-group">
+                <label for="objectDistance">Расстояние до предмета (dₒ): <span id="objectDistanceValue" class="value-display">150 см</span></label>
+                <input type="range" id="objectDistance" min="1" max="400" value="150" step="1" aria-label="Расстояние до предмета">
+            </div>
+
+            <div class="control-group">
+                <label for="objectHeight">Высота предмета (hₒ): <span id="objectHeightValue" class="value-display">50 см</span></label>
+                <input type="range" id="objectHeight" min="0.5" max="50" value="50" step="0.5" aria-label="Высота предмета">
+            </div>
+
+            <div class="button-group">
+                <button id="resetButton" class="secondary" aria-label="Сбросить все параметры к начальным">Сброс</button>
+                <button id="toggleRaysButton" aria-label="Показать или скрыть вспомогательные лучи">Скрыть лучи</button>
+            </div>
+             <p style="font-size: 0.8em; color: #6c757d; margin-top: 15px;">Изменяйте параметры с помощью ползунков и наблюдайте, как меняется изображение.</p>
+
+        </aside>
+
+        <!-- ОБЛАСТЬ СИМУЛЯЦИИ И РЕЗУЛЬТАТОВ -->
+        <main class="simulation-area">
+            <div class="explanation">
+                <p><strong>Как это работает?</strong> Для построения изображения используются три «удобных» луча. Их пересечение (или пересечение их продолжений) даёт вершину изображения.</p>
+            </div>
+            
+            <svg id="simulation-canvas" viewbox="0 0 1000 500" preserveAspectRatio="xMidYMid meet"></svg>
+            
+            <div class="results-card">
+                <h3>Параметры изображения:</h3>
+                <div id="infoMessage" class="info-message" style="display: none;"></div>
+                <div id="resultsGrid" class="results-grid">
+                    <div class="result-item"><strong>Положение (dᵢ):</strong> <span id="imageDistance"></span></div>
+                    <div class="result-item"><strong>Высота (hᵢ):</strong> <span id="imageHeight"></span></div>
+                    <div class="result-item"><strong>Увеличение (m):</strong> <span id="magnification"></span></div>
+                    <div class="result-item"><strong>Тип:</strong> <span id="imageType"></span></div>
+                    <div class="result-item"><strong>Ориентация:</strong> <span id="imageOrientation"></span></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // === 1. ПОЛУЧЕНИЕ ЭЛЕМЕНТОВ DOM ===
+            const svg = document.getElementById('simulation-canvas');
+            const focalLengthSlider = document.getElementById('focalLength');
+            const objectDistanceSlider = document.getElementById('objectDistance');
+            const objectHeightSlider = document.getElementById('objectHeight');
+            
+            const focalLengthValue = document.getElementById('focalLengthValue');
+            const objectDistanceValue = document.getElementById('objectDistanceValue');
+            const objectHeightValue = document.getElementById('objectHeightValue');
+
+            const imageDistanceEl = document.getElementById('imageDistance');
+            const imageHeightEl = document.getElementById('imageHeight');
+            const magnificationEl = document.getElementById('magnification');
+            const imageTypeEl = document.getElementById('imageType');
+            const imageOrientationEl = document.getElementById('imageOrientation');
+
+            const infoMessageEl = document.getElementById('infoMessage');
+            const resultsGridEl = document.getElementById('resultsGrid');
+
+            const resetButton = document.getElementById('resetButton');
+            const toggleRaysButton = document.getElementById('toggleRaysButton');
+            
+            // === 2. НАЧАЛЬНЫЕ ПАРАМЕТРЫ И СОСТОЯНИЕ ===
+            const INITIAL_STATE = {
+                f: 100, // Фокусное расстояние в см
+                d_o: 150, // Расстояние до объекта в см
+                h_o: 50,  // Высота объекта в см
+            };
+
+            let state = { ...INITIAL_STATE };
+            let showRays = true;
+
+            // Размеры SVG-холста
+            const svgWidth = 1000;
+            const svgHeight = 500;
+            const origin = { x: svgWidth / 2, y: svgHeight / 2 };
+
+            // Масштаб: сколько пикселей в одном сантиметре. 
+            // Это ключевой параметр для перевода физических величин в координаты на экране.
+            // Пусть максимальное расстояние (400 см) примерно умещается в половину холста.
+            const pixelsPerCm = origin.x / 450; 
+            
+            // === 3. ФУНКЦИИ-ПОМОЩНИКИ ===
+
+            /**
+             * Создает SVG-элемент с заданными атрибутами.
+             * @param {string} tag - Имя тега (например, 'line', 'circle').
+             * @param {object} attrs - Объект с атрибутами.
+             * @returns {SVGElement} - Созданный SVG-элемент.
+             */
+            function createSvgElement(tag, attrs) {
+                const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+                for (const key in attrs) {
+                    el.setAttribute(key, attrs[key]);
+                }
+                return el;
+            }
+
+            // === 4. ОСНОВНАЯ ЛОГИКА: ВЫЧИСЛЕНИЯ И ОТРИСОВКА ===
+
+            /**
+             * Главная функция обновления. Вызывается при любом изменении параметров.
+             */
+            function updateSimulation() {
+                // Обновляем текстовые значения рядом с ползунками
+                focalLengthValue.textContent = `${state.f} см`;
+                objectDistanceValue.textContent = `${state.d_o} см`;
+                objectHeightValue.textContent = `${state.h_o} см`;
+
+                // Очищаем холст перед новой отрисовкой
+                svg.innerHTML = '';
+                
+                // Проводим физические расчеты
+                const calculated = calculateImageParameters(state.f, state.d_o, state.h_o);
+                
+                // Обновляем карточку с результатами
+                updateResultsCard(calculated);
+                
+                // Рисуем все элементы на холсте
+                drawBaseElements();
+                drawObject(state.d_o, state.h_o);
+                
+                // Рисуем изображение и лучи только если это возможно
+                if (calculated.isFinite) {
+                    drawImage(calculated.d_i, calculated.h_i);
+                    if (showRays) {
+                         drawRays(state, calculated);
+                    }
+                }
+            }
+
+            /**
+             * Вычисляет параметры изображения по формуле тонкой линзы.
+             * 1/f = 1/d_o + 1/d_i  =>  d_i = (d_o * f) / (d_o - f)
+             * m = -d_i / d_o       =>  h_i = m * h_o
+             * @param {number} f - Фокусное расстояние.
+             * @param {number} d_o - Расстояние до объекта.
+             * @param {number} h_o - Высота объекта.
+             * @returns {object} - Объект с параметрами изображения.
+             */
+            function calculateImageParameters(f, d_o, h_o) {
+                // Защита от деления на ноль (когда предмет в фокусе)
+                if (Math.abs(d_o - f) < 0.01) {
+                    return { isFinite: false };
+                }
+
+                const d_i = (d_o * f) / (d_o - f);
+                const m = -d_i / d_o;
+                const h_i = m * h_o;
+
+                return {
+                    isFinite: true,
+                    d_i,
+                    h_i,
+                    m,
+                    type: d_i > 0 ? 'Действительное' : 'Мнимое',
+                    orientation: h_i < 0 ? 'Перевёрнутое' : 'Прямое'
+                };
+            }
+
+            /**
+             * Обновляет информационную карточку с результатами вычислений.
+             * @param {object} calculated - Объект с вычисленными параметрами.
+             */
+            function updateResultsCard(calculated) {
+                if (!calculated.isFinite) {
+                    infoMessageEl.textContent = 'Изображение в бесконечности (лучи параллельны)';
+                    infoMessageEl.style.display = 'block';
+                    resultsGridEl.style.display = 'none';
+                } else {
+                    infoMessageEl.style.display = 'none';
+                    resultsGridEl.style.display = 'grid';
+
+                    imageDistanceEl.textContent = `${calculated.d_i.toFixed(2)} см`;
+                    imageHeightEl.textContent = `${calculated.h_i.toFixed(2)} см`;
+                    magnificationEl.textContent = calculated.m.toFixed(2);
+                    imageTypeEl.textContent = calculated.type;
+                    imageOrientationEl.textContent = calculated.orientation;
+                }
+            }
+
+            // --- Функции отрисовки ---
+            
+            /**
+             * Рисует базовые элементы: оптическую ось, линзу, фокусы.
+             */
+            function drawBaseElements() {
+                // Главная оптическая ось
+                const axis = createSvgElement('line', {
+                    x1: 0, y1: origin.y, x2: svgWidth, y2: origin.y,
+                    stroke: '#aaa', 'stroke-width': 1
+                });
+                svg.appendChild(axis);
+
+                // Собирающая линза (вертикальная линия со стрелками)
+                const lensHeight = svgHeight * 0.8;
+                const lensTop = origin.y - lensHeight / 2;
+                const lensBottom = origin.y + lensHeight / 2;
+                const lens = createSvgElement('line', {
+                    x1: origin.x, y1: lensTop, x2: origin.x, y2: lensBottom,
+                    stroke: '#333', 'stroke-width': 2
+                });
+                // Стрелки для линзы
+                const arrowUp = createSvgElement('path', { d: `M ${origin.x-5},${lensTop+10} L ${origin.x},${lensTop} L ${origin.x+5},${lensTop+10}`, stroke: '#333', 'stroke-width': 2, fill: 'none' });
+                const arrowDown = createSvgElement('path', { d: `M ${origin.x-5},${lensBottom-10} L ${origin.x},${lensBottom} L ${origin.x+5},${lensBottom-10}`, stroke: '#333', 'stroke-width': 2, fill: 'none' });
+                svg.appendChild(lens);
+                svg.appendChild(arrowUp);
+                svg.appendChild(arrowDown);
+
+                // Фокусные точки F и F'
+                const f_px = state.f * pixelsPerCm;
+                const focus1 = createSvgElement('circle', { cx: origin.x - f_px, cy: origin.y, r: 4, fill: 'red' });
+                const focus2 = createSvgElement('circle', { cx: origin.x + f_px, cy: origin.y, r: 4, fill: 'red' });
+                const textF1 = createSvgElement('text', { x: origin.x - f_px - 20, y: origin.y + 20, fill: 'red', 'font-size': '16px' });
+                textF1.textContent = "F";
+                const textF2 = createSvgElement('text', { x: origin.x + f_px + 10, y: origin.y + 20, fill: 'red', 'font-size': '16px' });
+                textF2.textContent = "F'";
+
+                svg.appendChild(focus1);
+                svg.appendChild(focus2);
+                svg.appendChild(textF1);
+                svg.appendChild(textF2);
+            }
+
+            /**
+             * Рисует предмет (стрелка).
+             */
+            function drawObject(d_o, h_o) {
+                const x = origin.x - d_o * pixelsPerCm;
+                const y_base = origin.y;
+                const y_top = origin.y - h_o * pixelsPerCm;
+
+                const body = createSvgElement('line', {
+                    x1: x, y1: y_base, x2: x, y2: y_top,
+                    stroke: 'blue', 'stroke-width': 3
+                });
+                const head = createSvgElement('path', {
+                    d: `M ${x-5},${y_top+10} L ${x},${y_top} L ${x+5},${y_top+10}`,
+                    stroke: 'blue', 'stroke-width': 3, fill: 'none'
+                });
+                
+                svg.appendChild(body);
+                svg.appendChild(head);
+            }
+            
+            /**
+             * Рисует изображение (стрелка).
+             */
+            function drawImage(d_i, h_i) {
+                const x = origin.x + d_i * pixelsPerCm;
+                const y_base = origin.y;
+                const y_top = origin.y - h_i * pixelsPerCm;
+                const color = d_i > 0 ? 'green' : 'orange'; // Зеленый для действительного, оранжевый для мнимого
+
+                const body = createSvgElement('line', {
+                    x1: x, y1: y_base, x2: x, y2: y_top,
+                    stroke: color, 'stroke-width': 3
+                });
+                // Направление стрелки зависит от знака высоты
+                const arrowDir = h_i > 0 ? 10 : -10;
+                const head = createSvgElement('path', {
+                    d: `M ${x - 5},${y_top + arrowDir} L ${x},${y_top} L ${x + 5},${y_top + arrowDir}`,
+                    stroke: color, 'stroke-width': 3, fill: 'none'
+                });
+
+                svg.appendChild(body);
+                svg.appendChild(head);
+            }
+
+            /**
+             * Рисует три основных луча.
+             */
+            function drawRays(state, calculated) {
+                const { f, d_o, h_o } = state;
+                const { d_i, h_i } = calculated;
+                const isVirtual = d_i < 0;
+
+                const obj_x = origin.x - d_o * pixelsPerCm;
+                const obj_y_top = origin.y - h_o * pixelsPerCm;
+                const img_x = origin.x + d_i * pixelsPerCm;
+                const img_y_top = origin.y - h_i * pixelsPerCm;
+                
+                // --- Луч 1: параллельно оси, затем через фокус ---
+                const ray1_part1 = createSvgElement('line', {
+                    x1: obj_x, y1: obj_y_top, x2: origin.x, y2: obj_y_top,
+                    stroke: '#c92a2a', 'stroke-width': 1.5
+                });
+                const ray1_part2 = createSvgElement('line', {
+                    x1: origin.x, y1: obj_y_top, x2: img_x, y2: img_y_top,
+                    stroke: '#c92a2a', 'stroke-width': 1.5
+                });
+                svg.appendChild(ray1_part1);
+                svg.appendChild(ray1_part2);
+
+                if (isVirtual) { // Если изображение мнимое, рисуем продолжение луча пунктиром
+                    const ray1_virtual = createSvgElement('line', {
+                        x1: origin.x, y1: obj_y_top, x2: img_x, y2: img_y_top,
+                        stroke: '#c92a2a', 'stroke-width': 1.5, 'stroke-dasharray': '5 5'
+                    });
+                    ray1_part2.setAttribute('x2', svgWidth);
+                    ray1_part2.setAttribute('y2', origin.y - (h_o * f) / (f-d_o) * ((svgWidth - origin.x)/pixelsPerCm) / (d_i) );
+                    svg.appendChild(ray1_virtual);
+                }
+
+                // --- Луч 2: через оптический центр, не преломляясь ---
+                const ray2 = createSvgElement('line', {
+                    x1: obj_x, y1: obj_y_top, x2: img_x, y2: img_y_top,
+                    stroke: '#3b5bdb', 'stroke-width': 1.5
+                });
+                svg.appendChild(ray2);
+                if(isVirtual) {
+                    ray2.setAttribute('stroke-dasharray', '5 5');
+                    const ray2_real = createSvgElement('line', {
+                         x1: obj_x, y1: obj_y_top, x2: svgWidth, y2: origin.y - (h_o/d_o) * (svgWidth/pixelsPerCm - d_o),
+                         stroke: '#3b5bdb', 'stroke-width': 1.5
+                    });
+                    svg.appendChild(ray2_real);
+                }
+
+                // --- Луч 3: через передний фокус, затем параллельно оси ---
+                const focus_x = origin.x - f * pixelsPerCm;
+                const y_on_lens = origin.y - h_o * (f/(f-d_o)) * pixelsPerCm;
+
+                const ray3_part1 = createSvgElement('line', {
+                    x1: obj_x, y1: obj_y_top, x2: origin.x, y2: y_on_lens,
+                    stroke: '#2f9e44', 'stroke-width': 1.5
+                });
+                const ray3_part2 = createSvgElement('line', {
+                    x1: origin.x, y1: y_on_lens, x2: img_x, y2: img_y_top,
+                    stroke: '#2f9e44', 'stroke-width': 1.5
+                });
+                svg.appendChild(ray3_part1);
+                svg.appendChild(ray3_part2);
+                if (isVirtual) {
+                    ray3_part2.setAttribute('x2', svgWidth);
+                    ray3_part2.setAttribute('y2', y_on_lens);
+                    const ray3_virtual = createSvgElement('line', {
+                         x1: origin.x, y1: y_on_lens, x2: img_x, y2: img_y_top,
+                         stroke: '#2f9e44', 'stroke-width': 1.5, 'stroke-dasharray': '5 5'
+                    });
+                     svg.appendChild(ray3_virtual);
+                }
+            }
+
+
+            // === 5. ОБРАБОТЧИКИ СОБЫТИЙ ===
+            
+            focalLengthSlider.addEventListener('input', (e) => {
+                state.f = parseFloat(e.target.value);
+                updateSimulation();
+            });
+            
+            objectDistanceSlider.addEventListener('input', (e) => {
+                state.d_o = parseFloat(e.target.value);
+                updateSimulation();
+            });
+
+            objectHeightSlider.addEventListener('input', (e) => {
+                state.h_o = parseFloat(e.target.value);
+                updateSimulation();
+            });
+            
+            resetButton.addEventListener('click', () => {
+                state = { ...INITIAL_STATE };
+                focalLengthSlider.value = state.f;
+                objectDistanceSlider.value = state.d_o;
+                objectHeightSlider.value = state.h_o;
+                showRays = true;
+                toggleRaysButton.textContent = 'Скрыть лучи';
+                updateSimulation();
+            });
+
+            toggleRaysButton.addEventListener('click', () => {
+                showRays = !showRays;
+                toggleRaysButton.textContent = showRays ? 'Скрыть лучи' : 'Показать лучи';
+                updateSimulation();
+            });
+            
+            // Первоначальный запуск симуляции при загрузке страницы
+            updateSimulation();
+        });
+    </script>
+</body>
+</html>
